@@ -44,6 +44,7 @@ export const GraphQLEditorWindow: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [delay, setDelay] = useState<number>(0);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
+  const [isSaved, setIsSaved] = useState<boolean>(false);
 
   const theme = isDarkMode ? darkTheme : lightTheme;
 
@@ -159,12 +160,13 @@ export const GraphQLEditorWindow: React.FC = () => {
         type: 'save',
         operationName: data.operationName,
         customResponse: editedData,
-        activated: data.activated,
+        activated: true, // Auto-activate on save
         delay,
       });
       channel.close();
 
-      alert('Saved successfully! Go back to the main popup to activate.');
+      // Show saved state
+      setIsSaved(true);
     }
   };
 
@@ -257,15 +259,21 @@ export const GraphQLEditorWindow: React.FC = () => {
 
         <Footer>
           <FooterLeft>
-            <HelpText>
-              💡 Click values to edit • Modified fields are highlighted • Use Reset to restore
-            </HelpText>
+            {isSaved ? (
+              <SavedMessage>✅ Saved and activated! You can close this window.</SavedMessage>
+            ) : (
+              <HelpText>
+                💡 Click values to edit • Modified fields are highlighted • Use Reset to restore
+              </HelpText>
+            )}
           </FooterLeft>
           <FooterRight>
-            <Button onClick={() => window.close()}>Close</Button>
-            <Button $variant="primary" onClick={handleSave}>
-              💾 Save Changes
-            </Button>
+            <Button onClick={() => window.close()}>{isSaved ? '✕ Close' : 'Cancel'}</Button>
+            {!isSaved && (
+              <Button $variant="primary" onClick={handleSave}>
+                💾 Save & Activate
+              </Button>
+            )}
           </FooterRight>
         </Footer>
       </Container>
@@ -556,6 +564,13 @@ const HelpText = styled.p`
   margin: 0;
   font-size: 12px;
   color: ${props => props.theme.text.muted};
+`;
+
+const SavedMessage = styled.p`
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: ${props => props.theme.semantic.success};
 `;
 
 const FooterRight = styled.div`
