@@ -22,8 +22,12 @@
     "build": "webpack --mode production",
     "build:dev": "webpack --mode development",
     "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json,css}\"",
     "test": "jest",
-    "zip": "zip -r dist.zip dist"
+    "zip": "zip -r dist.zip dist",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.246",
@@ -34,8 +38,12 @@
     "@typescript-eslint/parser": "^5.0.0",
     "css-loader": "^6.8.1",
     "eslint": "^8.0.0",
+    "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.32.0",
     "eslint-plugin-react-hooks": "^4.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.4.2",
     "style-loader": "^3.3.3",
     "ts-loader": "^8.3.0",
     "typescript": "^4.5.5",
