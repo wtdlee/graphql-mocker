@@ -63,8 +63,8 @@ const installHook = () => {
   };
 
   // Listen for events from content script
-  const listenFromContentScript = (event: MessageEvent<ContentScriptMessage>) => {
-    const eventData = event.data;
+  const listenFromContentScript = (event: MessageEvent) => {
+    const eventData = event.data as ContentScriptMessage | undefined;
     if (
       event.source === window &&
       eventData?.source === 'graphql-mocker-content-script' &&
@@ -239,8 +239,10 @@ window.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Pr
 };
 
 // Intercept XMLHttpRequest for GraphQL requests
-const originalXHROpen = XMLHttpRequest.prototype.open.bind(XMLHttpRequest.prototype);
-const originalXHRSend = XMLHttpRequest.prototype.send.bind(XMLHttpRequest.prototype);
+// eslint-disable-next-line @typescript-eslint/unbound-method
+const originalXHROpen = XMLHttpRequest.prototype.open;
+// eslint-disable-next-line @typescript-eslint/unbound-method
+const originalXHRSend = XMLHttpRequest.prototype.send;
 
 interface ExtendedXHR extends XMLHttpRequest {
   _url?: string;

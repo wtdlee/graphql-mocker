@@ -36,6 +36,8 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
   const isModified =
     originalValue !== undefined && JSON.stringify(value) !== JSON.stringify(originalValue);
 
+  const isBoolean = typeof value === 'boolean';
+
   const handleStartEdit = () => {
     setEditValue(typeof value === 'string' ? value : JSON.stringify(value));
     setIsEditing(true);
@@ -58,6 +60,10 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
     } catch {
       alert('Invalid value format');
     }
+  };
+
+  const handleBooleanChange = (newBoolValue: boolean) => {
+    onChange(path, newBoolValue);
   };
 
   const handleCancelEdit = () => {
@@ -140,7 +146,39 @@ const FieldEditor: React.FC<FieldEditorProps> = ({
     <FieldContainer>
       <FieldRow $isModified={isModified}>
         <FieldKey>{path[path.length - 1]}</FieldKey>
-        {isEditing ? (
+        {isBoolean ? (
+          <>
+            <BooleanSelect
+              value={String(value)}
+              onChange={e => {
+                e.stopPropagation();
+                handleBooleanChange(e.target.value === 'true');
+              }}
+              onClick={e => e.stopPropagation()}
+              $value={value === true}
+            >
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </BooleanSelect>
+            <FieldType>boolean</FieldType>
+            {isModified && (
+              <>
+                <ModifiedBadge>Modified</ModifiedBadge>
+                <OriginalValue>
+                  Original: {typeof originalValue === 'boolean' ? String(originalValue) : 'N/A'}
+                </OriginalValue>
+                <ResetButton
+                  onClick={e => {
+                    e.stopPropagation();
+                    handleResetToOriginal();
+                  }}
+                >
+                  Reset
+                </ResetButton>
+              </>
+            )}
+          </>
+        ) : isEditing ? (
           <>
             <ValueInput
               type="text"
@@ -446,6 +484,33 @@ const ValueInput = styled.input`
   &:focus {
     outline: none;
     border-color: ${props => props.theme.brand.primaryHover};
+  }
+`;
+
+const BooleanSelect = styled.select<{ $value: boolean }>`
+  padding: 4px 8px;
+  background: ${props => props.theme.bg.tertiary};
+  border: 1px solid ${props => props.theme.border.primary};
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: ${props => props.theme.syntax.boolean};
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: ${props => props.theme.brand.primary};
+  }
+
+  &:focus {
+    outline: none;
+    border-color: ${props => props.theme.brand.primary};
+  }
+
+  option {
+    background: ${props => props.theme.bg.secondary};
+    color: ${props => props.theme.text.primary};
   }
 `;
 
