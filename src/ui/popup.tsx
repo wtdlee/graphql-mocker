@@ -1,11 +1,17 @@
-import * as React from "react";
-import * as ReactDOM from "react-dom";
-import App from "./app";
+import { createRoot } from 'react-dom/client';
+import App from './app';
 
-chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-  const tabId = tabs[0].id;
+chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
+  const tabId = tabs[0]?.id;
   if (tabId === undefined) {
     return;
   }
-  ReactDOM.render(<App tabId={tabId} />, document.getElementById("root"));
+
+  const container = document.getElementById('root');
+  if (!container) {
+    return;
+  }
+
+  const root = createRoot(container);
+  root.render(<App tabId={tabId} />);
 });
