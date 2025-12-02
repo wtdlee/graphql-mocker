@@ -1,10 +1,11 @@
 const path = require('path');
 
 module.exports = (env, argv) => {
-  const isDev = argv.mode === 'development';
+  const mode = argv.mode || 'development';
+  const isDev = mode === 'development';
 
   return {
-    mode: argv.mode || 'development',
+    mode,
     devtool: isDev ? 'inline-source-map' : 'source-map',
 
     entry: {
