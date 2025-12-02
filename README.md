@@ -11,11 +11,14 @@
 ## 🚀 Features
 
 - **📸 Capture GraphQL Responses** - Automatically intercepts and captures all GraphQL requests and responses
-- **✏️ Edit Responses** - Intuitive JSON editor with syntax highlighting and tree view
+- **✏️ Edit Responses** - Intuitive JSON editor with tree view and inline editing
 - **🎭 Mock Responses** - Activate custom responses to test edge cases without backend changes
+- **⏱️ Response Delay** - Simulate network latency by adding custom delays (0ms~)
+- **🔀 Boolean Dropdown** - Edit boolean values easily with true/false dropdown selector
+- **🎚️ Global Toggle** - Enable/disable all mocking with a single click
 - **🔍 Search & Filter** - Quickly find operations and search through JSON data
 - **🪟 Separate Window** - Open a larger editor window for complex data editing
-- **💾 Auto-Save** - Your custom responses are automatically saved per tab
+- **💾 Auto-Save & Activate** - Save changes and automatically activate mocking in one click
 
 ## 📦 Installation
 
@@ -185,17 +188,35 @@ graphql-mocker/
 3. **View captured operations** - Operations will appear automatically in the extension popup
 4. **Edit a response**:
    - Click on an operation to expand it
-   - Click "Edit Custom" to modify the response
-   - Make your changes in the JSON editor
-   - Click "Save Changes"
-5. **Activate the mock** - Click "Activate" to use your custom response
-6. **Reload the page** - Your custom response will be returned instead of the real API response
+   - Click "Edit Custom" or "Open in Window" to modify the response
+   - Make your changes in the JSON editor (click values to edit inline)
+   - For boolean values, use the dropdown to select true/false
+   - Optionally set a response delay to simulate network latency
+   - Click "Save & Activate" - response is saved and automatically activated
+5. **Reload the page** - Your custom response will be returned instead of the real API response
+
+### Global Controls
+
+- **Global Toggle (ON/OFF)** - Master switch to enable/disable all mocking at once
+- **Clear All** - Remove all captured responses and custom mocks
 
 ### Advanced Features
 
 #### Separate Editor Window
 
-For complex responses, click "Open in Window" to get a larger editing area with search functionality.
+For complex responses, click "Open in Window" to get a larger editing area with search functionality. Changes are saved and activated automatically when you click "Save & Activate".
+
+#### Response Delay
+
+Add custom delays to simulate slow network conditions or loading states:
+- Set delay in milliseconds (e.g., 500ms, 2000ms)
+- Even 0ms is displayed clearly for consistency
+
+#### Boolean Value Editing
+
+Boolean fields show a dropdown selector instead of text input:
+- Click on any boolean value to see true/false options
+- Changes are tracked and can be reset to original
 
 #### Search in JSON
 
