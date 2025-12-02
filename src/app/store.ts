@@ -5,19 +5,23 @@ import {
   GraphQLMockerState,
   GraphQLResponse,
   GraphQLCustomResponse,
-} from "../type/type";
+  MockerSettings,
+  DEFAULT_SETTINGS,
+} from '../type/type';
 
 type Callback = (tabId: number, state: State) => void;
 
 class Store {
   private graphqlResponsesMap: Map<string, GraphQLResponse[]>;
   private graphqlCustomResponsesMap: Map<string, GraphQLCustomResponse>;
+  private settings: MockerSettings;
   public tabId: number;
   private callbacks: Callback[] = [];
 
   constructor(tabId: number) {
     this.graphqlResponsesMap = new Map();
     this.graphqlCustomResponsesMap = new Map();
+    this.settings = DEFAULT_SETTINGS;
     this.tabId = tabId;
   }
 
@@ -25,12 +29,13 @@ class Store {
     return {
       graphqlResponses: this.graphqlResponses(),
       graphqlCustomResponses: this.graphqlCustomResponses(),
+      settings: this.settings,
     };
   };
 
   public graphqlResponses = (): GraphQLResponse[] => {
     const allResponses: GraphQLResponse[] = [];
-    this.graphqlResponsesMap.forEach((responses) => {
+    this.graphqlResponsesMap.forEach(responses => {
       allResponses.push(...responses);
     });
     return allResponses;
@@ -40,12 +45,16 @@ class Store {
     return Array.from(this.graphqlCustomResponsesMap.values());
   };
 
+  public getSettings = (): MockerSettings => {
+    return this.settings;
+  };
+
   public addGraphQLResponse = (response: GraphQLResponse) => {
     const existing = this.graphqlResponsesMap.get(response.operationName) || [];
     // Keep only last 10 responses per operation
     const updated = [response, ...existing].slice(0, 10);
     this.graphqlResponsesMap.set(response.operationName, updated);
-    this.callbacks.forEach((f) => f(this.tabId, this.dump()));
+    this.callbacks.forEach(f => f(this.tabId, this.dump()));
   };
 
   public setGraphQLCustomResponse = (customResponse: GraphQLCustomResponse) => {
@@ -53,12 +62,20 @@ class Store {
     if (customResponse.customResponse === null) {
       this.graphqlCustomResponsesMap.delete(customResponse.operationName);
     } else {
-      this.graphqlCustomResponsesMap.set(
-        customResponse.operationName,
-        customResponse
-      );
+      this.graphqlCustomResponsesMap.set(customResponse.operationName, customResponse);
     }
-    this.callbacks.forEach((f) => f(this.tabId, this.dump()));
+    this.callbacks.forEach(f => f(this.tabId, this.dump()));
+  };
+
+  public setSettings = (settings: MockerSettings) => {
+    this.settings = settings;
+    this.callbacks.forEach(f => f(this.tabId, this.dump()));
+  };
+
+  public clearAll = () => {
+    this.graphqlResponsesMap.clear();
+    this.graphqlCustomResponsesMap.clear();
+    this.callbacks.forEach(f => f(this.tabId, this.dump()));
   };
 
   public updateFrom = (msg: Message) => {
@@ -71,7 +88,7 @@ class Store {
         break;
       case MessageType.GraphQLResponseCaptured:
         if (msg.graphqlResponses) {
-          msg.graphqlResponses.forEach((response) => {
+          msg.graphqlResponses.forEach(response => {
             this.addGraphQLResponse(response);
           });
         }
@@ -80,13 +97,21 @@ class Store {
         if (msg.graphqlCustomResponses) {
           // Clear existing custom responses and set new ones
           this.graphqlCustomResponsesMap.clear();
-          msg.graphqlCustomResponses.forEach((customResponse) => {
+          msg.graphqlCustomResponses.forEach(customResponse => {
             this.setGraphQLCustomResponse(customResponse);
           });
         }
         break;
+      case MessageType.SettingsUpdate:
+        if (msg.settings) {
+          this.setSettings(msg.settings);
+        }
+        break;
+      case MessageType.ClearAll:
+        this.clearAll();
+        break;
     }
-    this.callbacks.forEach((f) => f(this.tabId, this.dump()));
+    this.callbacks.forEach(f => f(this.tabId, this.dump()));
   };
 
   public registerCallback = (callback: Callback) => {
@@ -98,6 +123,7 @@ class Store {
       tabId: this.tabId,
       graphqlResponses: this.graphqlResponses(),
       graphqlCustomResponses: this.graphqlCustomResponses(),
+      settings: this.settings,
     };
   };
 
@@ -106,27 +132,25 @@ class Store {
 
     // Restore GraphQL responses
     if (state.graphqlResponses) {
-      state.graphqlResponses.forEach((response) => {
-        const existing =
-          this.graphqlResponsesMap.get(response.operationName) || [];
-        this.graphqlResponsesMap.set(response.operationName, [
-          ...existing,
-          response,
-        ]);
+      state.graphqlResponses.forEach(response => {
+        const existing = this.graphqlResponsesMap.get(response.operationName) || [];
+        this.graphqlResponsesMap.set(response.operationName, [...existing, response]);
       });
     }
 
     // Restore GraphQL custom responses
     if (state.graphqlCustomResponses) {
-      state.graphqlCustomResponses.forEach((customResponse) => {
-        this.graphqlCustomResponsesMap.set(
-          customResponse.operationName,
-          customResponse
-        );
+      state.graphqlCustomResponses.forEach(customResponse => {
+        this.graphqlCustomResponsesMap.set(customResponse.operationName, customResponse);
       });
     }
 
-    this.callbacks.forEach((f) => f(this.tabId, this.dump()));
+    // Restore settings
+    if (state.settings) {
+      this.settings = state.settings;
+    }
+
+    this.callbacks.forEach(f => f(this.tabId, this.dump()));
   };
 }
 
