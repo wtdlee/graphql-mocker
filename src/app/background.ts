@@ -1,38 +1,63 @@
-import { Payload, State, MessageType, GraphQLMockerState } from "../type/type";
-import Store from "./store";
+import {
+  Payload,
+  State,
+  MessageType,
+  GraphQLMockerState,
+  MockerSettings,
+  DEFAULT_SETTINGS,
+} from '../type/type';
+import Store from './store';
 
 const stores: Map<number, Store> = new Map();
+let globalSettings: MockerSettings = { ...DEFAULT_SETTINGS };
 
-// Save stores to storage
+// Save stores to session storage (temporary data)
 const saveStoresToStorage = () => {
-  const stateToSave = Array.from(stores.values()).map((store) =>
-    JSON.stringify(store)
-  );
+  const stateToSave = Array.from(stores.values()).map(store => JSON.stringify(store));
   void chrome.storage.session.set({ state: stateToSave });
 };
 
-// Load stores from storage
-const loadStoresFromStorage = () => {
-  void chrome.storage.session.get("state").then((result) => {
-    const stateInfoArray = result.state;
-    if (stateInfoArray === undefined) {
-      return;
-    }
-    stateInfoArray.forEach((stateInfo: string) => {
-      const state = JSON.parse(stateInfo) as GraphQLMockerState;
-      const store = convertStateToStore(state);
-      stores.set(store.tabId, store);
-    });
+// Save settings to local storage (permanent)
+const saveSettingsToStorage = () => {
+  void chrome.storage.local.set({ settings: globalSettings });
+};
+
+// Load settings from local storage
+const loadSettingsFromStorage = async (): Promise<MockerSettings> => {
+  const result = await chrome.storage.local.get('settings');
+  if (result.settings) {
+    globalSettings = result.settings as MockerSettings;
+  }
+  return globalSettings;
+};
+
+// Load stores from session storage
+const loadStoresFromStorage = async () => {
+  // First load global settings
+  await loadSettingsFromStorage();
+
+  // Then load session state
+  const result = await chrome.storage.session.get('state');
+  const stateInfoArray = result.state as string[] | undefined;
+  if (stateInfoArray === undefined) {
+    return;
+  }
+  stateInfoArray.forEach((stateInfo: string) => {
+    const state = JSON.parse(stateInfo) as GraphQLMockerState;
+    // Override settings with global settings
+    state.settings = globalSettings;
+    const store = convertStateToStore(state);
+    stores.set(store.tabId, store);
   });
 
-  const convertStateToStore = (state: GraphQLMockerState): Store => {
+  function convertStateToStore(state: GraphQLMockerState): Store {
     const store = getStore(state.tabId);
     store.setupFromState(state);
     return store;
-  };
+  }
 };
 
-loadStoresFromStorage();
+void loadStoresFromStorage();
 
 // Message handling
 const ports = new Map<number, Map<string, chrome.runtime.Port | undefined>>();
@@ -42,24 +67,54 @@ const sendMessage = (message: Payload, tabId: number) => {
   if (message === null) {
     return;
   }
-  if (message.to === "datastore") {
+
+  // Handle keep-alive ping - just receiving it keeps the service worker alive
+  if (message.msg?.type === MessageType.Ping) {
+    return;
+  }
+
+  if (message.to === 'datastore') {
     const store = getStore(tabId);
+
+    // Handle settings update globally
+    if (message.msg.type === MessageType.SettingsUpdate && message.msg.settings) {
+      globalSettings = message.msg.settings;
+      saveSettingsToStorage();
+
+      // Update settings for all stores
+      stores.forEach(s => {
+        s.setSettings(globalSettings);
+      });
+    }
+
     store.updateFrom(message.msg);
     saveStoresToStorage();
 
-    // Send GraphQL custom responses back to content script for appHook
-    if (store && message.msg.type === MessageType.GraphQLCustomResponseUpdate) {
+    // Send updates back to content script for appHook
+    if (
+      store &&
+      (message.msg.type === MessageType.GraphQLCustomResponseUpdate ||
+        message.msg.type === MessageType.SettingsUpdate)
+    ) {
       ports
         .get(tabId)
-        ?.get("content-script")
+        ?.get('content-script')
         ?.postMessage({
-          from: "datastore",
-          to: "content-script",
+          from: 'datastore',
+          to: 'content-script',
           msg: {
             type: MessageType.Snapshot,
             graphqlCustomResponses: store.graphqlCustomResponses(),
+            settings: globalSettings,
           },
         });
+    }
+
+    // Update badge for all tabs when settings change
+    if (message.msg.type === MessageType.SettingsUpdate) {
+      stores.forEach((_, tid) => updateBadge(tid));
+    } else {
+      updateBadge(tabId);
     }
     return;
   }
@@ -75,7 +130,7 @@ chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
   if (!match) return;
 
   const tabId = port?.sender?.tab?.id || parseInt(match[3]);
-  if (tabId === undefined) {
+  if (tabId === undefined || isNaN(tabId)) {
     return;
   }
   const name = match[1];
@@ -101,17 +156,21 @@ const getStore = (tabId: number): Store => {
   }
   const store = new Store(tabId);
 
-  const targets = ["popup", "content-script"];
-  targets.forEach((target) => {
+  // Initialize with global settings
+  store.setSettings(globalSettings);
+
+  const targets = ['popup', 'content-script'];
+  targets.forEach(target => {
     store.registerCallback((tabId: number, state: State) => {
       sendMessage(
         {
-          from: "datastore",
+          from: 'datastore',
           to: target,
           msg: {
             ...state,
             graphqlResponses: state.graphqlResponses,
             graphqlCustomResponses: state.graphqlCustomResponses,
+            settings: globalSettings, // Always use global settings
             type: MessageType.Snapshot,
           },
         },
@@ -128,25 +187,42 @@ const getStore = (tabId: number): Store => {
 const updateBadge = (tabId: number) => {
   const store = stores.get(tabId);
   if (store) {
-    const activeMocks = store
-      .graphqlCustomResponses()
-      .filter((cr) => cr.activated).length;
-    void chrome.action.setBadgeText({
-      text: activeMocks > 0 ? activeMocks.toString() : "",
-      tabId,
-    });
-    void chrome.action.setBadgeBackgroundColor({
-      color: "#6cc644",
-      tabId,
-    });
+    const settings = store.getSettings();
+    const activeMocks = store.graphqlCustomResponses().filter(cr => cr.activated).length;
+    const isGlobalEnabled = settings.globalMockEnabled;
+
+    if (activeMocks > 0 && isGlobalEnabled) {
+      void chrome.action.setBadgeText({
+        text: activeMocks.toString(),
+        tabId,
+      });
+      void chrome.action.setBadgeBackgroundColor({
+        color: '#10b981', // emerald-500
+        tabId,
+      });
+    } else if (activeMocks > 0 && !isGlobalEnabled) {
+      void chrome.action.setBadgeText({
+        text: '⏸',
+        tabId,
+      });
+      void chrome.action.setBadgeBackgroundColor({
+        color: '#64748b', // slate-500
+        tabId,
+      });
+    } else {
+      void chrome.action.setBadgeText({
+        text: '',
+        tabId,
+      });
+    }
   }
 };
 
-chrome.tabs.onUpdated.addListener((tabId) => {
+chrome.tabs.onUpdated.addListener(tabId => {
   updateBadge(tabId);
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => {
+chrome.tabs.onRemoved.addListener(tabId => {
   stores.delete(tabId);
   ports.delete(tabId);
   saveStoresToStorage();
